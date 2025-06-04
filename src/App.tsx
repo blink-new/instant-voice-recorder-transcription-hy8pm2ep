@@ -1,18 +1,41 @@
 import { useState, useRef, useEffect } from 'react'
-import { Mic, MicOff, Trash2, Copy, Download } from 'lucide-react'
+import { Mic, MicOff, Trash2, Copy, Download, Languages } from 'lucide-react'
 import { Button } from './components/ui/button'
 import { Card, CardContent } from './components/ui/card'
 import { Badge } from './components/ui/badge'
 import { toast } from 'react-hot-toast'
 import { motion, AnimatePresence } from 'framer-motion'
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "./components/ui/select"
 import { SpeechRecognition, SpeechRecognitionEvent, SpeechRecognitionErrorEvent } from './types/speech'
 
 interface Transcription {
   id: string
   text: string
-  timestamp: Date
+  timestamp: string // Store as ISO string for localStorage
   confidence: number
+  lang: string
 }
+
+const supportedLanguages = [
+  { code: 'en-US', name: 'English (US)' },
+  { code: 'es-ES', name: 'Español (España)' },
+  { code: 'fr-FR', name: 'Français (France)' },
+  { code: 'de-DE', name: 'Deutsch (Deutschland)' },
+  { code: 'it-IT', name: 'Italiano (Italia)' },
+  { code: 'ja-JP', name: '日本語 (日本)' },
+  { code: 'ko-KR', name: '한국어 (대한민국)' },
+  { code: 'pt-BR', name: 'Português (Brasil)' },
+  { code: 'ru-RU', name: 'Русский (Россия)' },
+  { code: 'zh-CN', name: '中文 (简体)' },
+  { code: 'hi-IN', name: 'हिन्दी (भारत)' },
+  { code: 'ar-SA', name: 'العربية (السعودية)' },
+];
 
 function App() {
   const [isRecording, setIsRecording] = useState(false)
@@ -20,12 +43,31 @@ function App() {
   const [currentTranscript, setCurrentTranscript] = useState('')
   const [audioLevel, setAudioLevel] = useState(0)
   const [isSupported, setIsSupported] = useState(true)
+  const [selectedLang, setSelectedLang] = useState('en-US')
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const animationFrameRef = useRef<number>()
+
+  // Load transcriptions from localStorage on mount
+  useEffect(() => {
+    try {
+      const storedTranscriptions = localStorage.getItem('voiceTranscriptions')
+      if (storedTranscriptions) {
+        setTranscriptions(JSON.parse(storedTranscriptions));
+      }
+    } catch (error) {
+      console.error("Failed to load transcriptions from localStorage:", error);
+      toast.error("Could not load saved transcriptions.")
+    }
+  }, []);
+
+  // Save transcriptions to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('voiceTranscriptions', JSON.stringify(transcriptions));
+  }, [transcriptions]);
 
   useEffect(() => {
     const SpeechRecognitionConstructor = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -38,7 +80,7 @@ function App() {
     const recognition = new SpeechRecognitionConstructor() as SpeechRecognition
     recognition.continuous = true
     recognition.interimResults = true
-    recognition.lang = 'en-US'
+    recognition.lang = selectedLang
 
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let finalTranscript = ''
@@ -57,10 +99,11 @@ function App() {
         const newTranscription: Transcription = {
           id: Date.now().toString(),
           text: finalTranscript.trim(),
-          timestamp: new Date(),
-          confidence: event.results[event.results.length - 1][0].confidence || 0.8
+          timestamp: new Date().toISOString(),
+          confidence: event.results[event.results.length - 1][0].confidence || 0.8,
+          lang: selectedLang,
         }
-        setTranscriptions(prev => [...prev, newTranscription])
+        setTranscriptions(prev => [newTranscription, ...prev]) // Add to the beginning
         setCurrentTranscript('')
       } else {
         setCurrentTranscript(interimTranscript)
@@ -70,18 +113,65 @@ function App() {
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error)
       if (event.error === 'not-allowed') {
-        toast.error('Microphone access denied')
+        toast.error('Microphone access denied. Please allow microphone access in your browser settings.')
+      } else if (event.error === 'language-not-supported') {
+        toast.error(`Language ${selectedLang} not supported for speech recognition.`)
+      } else if (event.error === 'no-speech') {
+        toast.error('No speech detected. Please try speaking again.');
+      } else {
+        toast.error('Speech recognition error. Please try again.')
       }
+      // Ensure recording stops cleanly on error
+      if (isRecording) stopRecordingInternal(); 
     }
+    
+    recognition.onend = () => {
+      // Automatically restart recognition if it stops and we are still in recording mode
+      // This handles cases where recognition might stop prematurely
+      if (isRecording && recognitionRef.current && recognitionRef.current !== recognition) {
+         // if recognitionRef has been updated to a new instance, don't restart the old one
+      } else if (isRecording && recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+        } catch (_error) { 
+          // Could be that it was stopped intentionally
+        }
+      }
+    };
 
     recognitionRef.current = recognition
+
+    // If recording is active when language changes, restart recognition
+    if (isRecording) {
+      recognition.start()
+    }
 
     return () => {
       recognition.stop()
     }
-  }, [])
+  }, [selectedLang]) // Re-run effect when selectedLang changes
+
+  const stopRecordingInternal = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.close();
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    setIsRecording(false);
+    setAudioLevel(0);
+    setCurrentTranscript('');
+  };
 
   const startRecording = async () => {
+    if (isRecording) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       
@@ -97,6 +187,7 @@ function App() {
       mediaRecorderRef.current.start()
 
       if (recognitionRef.current) {
+        recognitionRef.current.lang = selectedLang; // Ensure lang is up-to-date
         recognitionRef.current.start()
       }
 
@@ -104,46 +195,52 @@ function App() {
       toast.success('Recording started')
     } catch (error) {
       console.error('Error starting recording:', error)
-      toast.error('Failed to start recording')
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        toast.error('Microphone access denied. Please allow microphone access.');
+      } else {
+        toast.error('Failed to start recording. Please check microphone permissions.')
+      }
+      stopRecordingInternal();
     }
   }
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop()
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop())
-    }
-
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-    }
-
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-    }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current)
-    }
-
-    setIsRecording(false)
-    setAudioLevel(0)
-    setCurrentTranscript('')
+    if (!isRecording) return;
+    stopRecordingInternal();
     toast.success('Recording stopped')
   }
 
+  const handleLanguageChange = (langCode: string) => {
+    setSelectedLang(langCode);
+    if (isRecording) {
+      // Stop current recording and recognition
+      if (recognitionRef.current) {
+        recognitionRef.current.stop();
+      }
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      }
+      // The useEffect for selectedLang will re-initialize and start recognition with the new language
+      // We can optionally auto-restart recording here or let the user do it.
+      // For now, let's stop and let user restart to avoid confusion.
+      setIsRecording(false);
+      setAudioLevel(0);
+      setCurrentTranscript('');
+      toast.info(`Language changed to ${supportedLanguages.find(l => l.code === langCode)?.name}. Click record to start.`);
+    }
+  };
+
   const monitorAudioLevel = () => {
     if (!analyserRef.current) return
-
     const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
-    
     const updateLevel = () => {
+      if (!analyserRef.current || analyserRef.current.context.state === 'closed') return;
       analyserRef.current!.getByteFrequencyData(dataArray)
       const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length
       setAudioLevel(average / 255)
       animationFrameRef.current = requestAnimationFrame(updateLevel)
     }
-
     updateLevel()
   }
 
@@ -158,16 +255,22 @@ function App() {
   }
 
   const downloadTranscriptions = () => {
+    if (transcriptions.length === 0) {
+      toast.error("No transcriptions to download.");
+      return;
+    }
     const content = transcriptions.map(t => 
-      `[${t.timestamp.toLocaleTimeString()}] ${t.text}`
+      `[${new Date(t.timestamp).toLocaleTimeString()} - ${t.lang}] ${t.text}`
     ).join('\n\n')
     
-    const blob = new Blob([content], { type: 'text/plain' })
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `transcriptions-${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a); // Required for Firefox
     a.click()
+    document.body.removeChild(a); // Clean up
     URL.revokeObjectURL(url)
     toast.success('Transcriptions downloaded')
   }
@@ -207,9 +310,33 @@ function App() {
             transition={{ delay: 0.1 }}
             className="text-gray-600"
           >
-            Record your voice and get instant transcriptions
+            Record your voice and get instant transcriptions in your chosen language.
           </motion.p>
         </div>
+
+        {/* Language Selector and Controls */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="mb-6 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4"
+        >
+          <div className="flex items-center space-x-2 bg-white/70 backdrop-blur-sm p-2 rounded-lg shadow-md">
+            <Languages size={20} className="text-blue-500" />
+            <Select value={selectedLang} onValueChange={handleLanguageChange}>
+              <SelectTrigger className="w-[200px] border-0 focus:ring-0 focus:ring-offset-0 bg-transparent text-sm">
+                <SelectValue placeholder="Select language" />
+              </SelectTrigger>
+              <SelectContent>
+                {supportedLanguages.map(lang => (
+                  <SelectItem key={lang.code} value={lang.code}>
+                    {lang.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, scale: 0.95 }}
@@ -237,11 +364,12 @@ function App() {
                     <Button
                       onClick={isRecording ? stopRecording : startRecording}
                       size="lg"
+                      disabled={!isSupported} // Disable if not supported
                       className={`w-20 h-20 rounded-full transition-all duration-300 shadow-lg ${
                         isRecording 
                           ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-200' 
                           : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200'
-                      }`}
+                      } ${!isSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
                     </Button>
@@ -268,10 +396,10 @@ function App() {
 
                 <div className="text-center">
                   <Badge variant={isRecording ? "destructive" : "secondary"} className="mb-2">
-                    {isRecording ? 'Recording...' : 'Ready to record'}
+                    {isRecording ? 'Recording...' : (isSupported ? 'Ready to record' : 'Not Supported')}
                   </Badge>
                   <p className="text-sm text-gray-600">
-                    {isRecording ? 'Speak clearly into your microphone' : 'Click the microphone to start recording'}
+                    {isRecording ? `Speaking in ${supportedLanguages.find(l=>l.code === selectedLang)?.name || selectedLang}` : (isSupported ? 'Click the microphone to start' : 'Speech recognition unavailable')}
                   </p>
                 </div>
 
@@ -333,24 +461,27 @@ function App() {
                   key={transcription.id}
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
+                  transition={{ delay: index * 0.05 }} // Faster animation for list items
                 >
                   <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm hover:shadow-lg transition-shadow">
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap">
                           <Badge variant="outline" className="text-xs">
-                            {transcription.timestamp.toLocaleTimeString()}
+                            {new Date(transcription.timestamp).toLocaleTimeString()}
                           </Badge>
                           <Badge variant="secondary" className="text-xs">
-                            {Math.round(transcription.confidence * 100)}% confidence
+                            {Math.round(transcription.confidence * 100)}% conf.
+                          </Badge>
+                          <Badge variant="info" className="text-xs bg-blue-100 text-blue-700">
+                            {supportedLanguages.find(l => l.code === transcription.lang)?.name || transcription.lang}
                           </Badge>
                         </div>
                         <Button
                           onClick={() => copyToClipboard(transcription.text)}
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0"
+                          className="h-8 w-8 p-0 flex-shrink-0"
                         >
                           <Copy size={14} />
                         </Button>
@@ -375,7 +506,7 @@ function App() {
               <Mic size={64} className="mx-auto" />
             </div>
             <h3 className="text-xl font-medium text-gray-600 mb-2">No recordings yet</h3>
-            <p className="text-gray-500">Start recording to see your transcriptions here</p>
+            <p className="text-gray-500">Start recording to see your transcriptions here. Saved transcriptions will appear if available.</p>
           </motion.div>
         )}
       </div>
