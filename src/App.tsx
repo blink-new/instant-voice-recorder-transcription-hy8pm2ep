@@ -294,13 +294,13 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-background text-foreground">
       <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <motion.h1 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2"
+            className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2"
           >
             Voice Transcriber
           </motion.h1>
@@ -308,7 +308,7 @@ function App() {
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-gray-600"
+            className="text-muted-foreground"
           >
             Record your voice and get instant transcriptions in your chosen language.
           </motion.p>
@@ -321,10 +321,10 @@ function App() {
           transition={{ delay: 0.15 }}
           className="mb-6 flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-4"
         >
-          <div className="flex items-center space-x-2 bg-white/70 backdrop-blur-sm p-2 rounded-lg shadow-md">
-            <Languages size={20} className="text-blue-500" />
+          <div className="flex items-center space-x-2 bg-card/70 backdrop-blur-sm p-2 rounded-lg shadow-md border border-border">
+            <Languages size={20} className="text-primary" />
             <Select value={selectedLang} onValueChange={handleLanguageChange}>
-              <SelectTrigger className="w-[200px] border-0 focus:ring-0 focus:ring-offset-0 bg-transparent text-sm">
+              <SelectTrigger className="w-[200px] border-0 focus:ring-0 focus:ring-offset-0 bg-transparent text-foreground">
                 <SelectValue placeholder="Select language" />
               </SelectTrigger>
               <SelectContent>
@@ -344,7 +344,7 @@ function App() {
           transition={{ delay: 0.2 }}
           className="relative"
         >
-          <Card className="mb-8 border-0 shadow-xl bg-white/70 backdrop-blur-sm">
+          <Card className="mb-8 border-0 shadow-xl bg-card/70 backdrop-blur-sm">
             <CardContent className="p-8">
               <div className="flex flex-col items-center space-y-6">
                 <div className="relative">
@@ -352,8 +352,8 @@ function App() {
                     animate={{ 
                       scale: isRecording ? [1, 1.1, 1] : 1,
                       boxShadow: isRecording 
-                        ? ['0 0 0 0 rgba(59, 130, 246, 0.7)', '0 0 0 20px rgba(59, 130, 246, 0)', '0 0 0 0 rgba(59, 130, 246, 0)']
-                        : '0 0 0 0 rgba(59, 130, 246, 0)'
+                        ? ['0 0 0 0 rgba(var(--primary-rgb), 0.7)', '0 0 0 20px rgba(var(--primary-rgb), 0)', '0 0 0 0 rgba(var(--primary-rgb), 0)']
+                        : '0 0 0 0 rgba(var(--primary-rgb), 0)'
                     }}
                     transition={{ 
                       duration: isRecording ? 1.5 : 0.3,
@@ -367,8 +367,8 @@ function App() {
                       disabled={!isSupported} // Disable if not supported
                       className={`w-20 h-20 rounded-full transition-all duration-300 shadow-lg ${
                         isRecording 
-                          ? 'bg-red-500 hover:bg-red-600 text-white shadow-red-200' 
-                          : 'bg-blue-500 hover:bg-blue-600 text-white shadow-blue-200'
+                          ? 'bg-destructive hover:bg-red-600 text-destructive-foreground shadow-red-200' 
+                          : 'bg-primary hover:bg-teal-600 text-primary-foreground shadow-primary-200'
                       } ${!isSupported ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                       {isRecording ? <MicOff size={32} /> : <Mic size={32} />}
@@ -383,9 +383,9 @@ function App() {
                             key={i}
                             animate={{ 
                               height: audioLevel > (i * 0.2) ? `${Math.max(4, audioLevel * 20)}px` : '4px',
-                              backgroundColor: audioLevel > (i * 0.2) ? '#3b82f6' : '#d1d5db'
+                              backgroundColor: audioLevel > (i * 0.2) ? 'hsl(var(--primary))' : 'hsl(var(--muted))'
                             }}
-                            className="w-1 bg-gray-300 rounded-full"
+                            className="w-1 rounded-full transition-all duration-100 bg-muted"
                             style={{ height: '4px' }}
                           />
                         ))}
@@ -398,7 +398,7 @@ function App() {
                   <Badge variant={isRecording ? "destructive" : "secondary"} className="mb-2">
                     {isRecording ? 'Recording...' : (isSupported ? 'Ready to record' : 'Not Supported')}
                   </Badge>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm text-muted-foreground">
                     {isRecording ? `Speaking in ${supportedLanguages.find(l=>l.code === selectedLang)?.name || selectedLang}` : (isSupported ? 'Click the microphone to start' : 'Speech recognition unavailable')}
                   </p>
                 </div>
@@ -411,10 +411,10 @@ function App() {
                       exit={{ opacity: 0, y: -10 }}
                       className="w-full max-w-2xl"
                     >
-                      <div className="bg-blue-50 rounded-lg p-4 border-l-4 border-blue-400">
-                        <p className="text-blue-800 italic">
+                      <div className="bg-secondary rounded-lg p-4 border-l-4 border-primary">
+                        <p className="text-foreground italic">
                           {currentTranscript}
-                          <span className="inline-block w-2 h-5 bg-blue-600 ml-1 animate-pulse"></span>
+                          <span className="inline-block w-2 h-5 bg-primary ml-1 animate-pulse"></span>
                         </p>
                       </div>
                     </motion.div>
@@ -432,13 +432,13 @@ function App() {
             transition={{ delay: 0.3 }}
           >
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold text-gray-800">Transcriptions</h2>
+              <h2 className="text-2xl font-semibold text-foreground">Transcriptions</h2>
               <div className="flex space-x-2">
                 <Button
                   onClick={downloadTranscriptions}
                   variant="outline"
                   size="sm"
-                  className="bg-white/70 backdrop-blur-sm"
+                  className="bg-card/70 backdrop-blur-sm text-foreground border-border hover:bg-card"
                 >
                   <Download size={16} className="mr-2" />
                   Download
@@ -447,7 +447,7 @@ function App() {
                   onClick={clearTranscriptions}
                   variant="outline"
                   size="sm"
-                  className="bg-white/70 backdrop-blur-sm text-red-600 hover:text-red-700"
+                  className="bg-card/70 backdrop-blur-sm text-destructive border-border hover:bg-card hover:text-destructive-foreground"
                 >
                   <Trash2 size={16} className="mr-2" />
                   Clear
@@ -463,17 +463,17 @@ function App() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }} // Faster animation for list items
                 >
-                  <Card className="border-0 shadow-md bg-white/70 backdrop-blur-sm hover:shadow-lg transition-shadow">
+                  <Card className="border-0 shadow-md bg-card/70 backdrop-blur-sm hover:shadow-lg transition-shadow">
                     <CardContent className="p-4">
                       <div className="flex justify-between items-start mb-2">
                         <div className="flex items-center space-x-2 flex-wrap">
-                          <Badge variant="outline" className="text-xs">
+                          <Badge variant="outline" className="text-xs text-muted-foreground border-muted">
                             {new Date(transcription.timestamp).toLocaleTimeString()}
                           </Badge>
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="text-xs text-secondary-foreground bg-secondary">
                             {Math.round(transcription.confidence * 100)}% conf.
                           </Badge>
-                          <Badge variant="info" className="text-xs bg-blue-100 text-blue-700">
+                          <Badge variant="default" className="text-xs bg-primary text-primary-foreground">
                             {supportedLanguages.find(l => l.code === transcription.lang)?.name || transcription.lang}
                           </Badge>
                         </div>
@@ -481,12 +481,12 @@ function App() {
                           onClick={() => copyToClipboard(transcription.text)}
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 flex-shrink-0"
+                          className="h-8 w-8 p-0 flex-shrink-0 text-muted-foreground hover:text-foreground"
                         >
                           <Copy size={14} />
                         </Button>
                       </div>
-                      <p className="text-gray-800 leading-relaxed">{transcription.text}</p>
+                      <p className="text-foreground leading-relaxed">{transcription.text}</p>
                     </CardContent>
                   </Card>
                 </motion.div>
@@ -502,11 +502,11 @@ function App() {
             transition={{ delay: 0.4 }}
             className="text-center py-16"
           >
-            <div className="text-gray-400 mb-4">
+            <div className="text-muted-foreground mb-4">
               <Mic size={64} className="mx-auto" />
             </div>
-            <h3 className="text-xl font-medium text-gray-600 mb-2">No recordings yet</h3>
-            <p className="text-gray-500">Start recording to see your transcriptions here. Saved transcriptions will appear if available.</p>
+            <h3 className="text-xl font-medium text-muted-foreground mb-2">No recordings yet</h3>
+            <p className="text-muted-foreground">Start recording to see your transcriptions here. Saved transcriptions will appear if available.</p>
           </motion.div>
         )}
       </div>
